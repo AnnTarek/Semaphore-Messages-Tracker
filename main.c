@@ -2,9 +2,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <signal.h>
+#include <unistd.h>
 
 #define NUM_THREADS 7
-#define BUFFER_SIZE 15
+#define BUFFER_SIZE 5
+#define MESSAGE_SIZE 10
+#define RAND SLEEP_RANGE = 1, 5;
+#define KNRM  "\x1B[0m"
+#define KRED  "\x1B[31m"
+#define KGRN  "\x1B[32m"
+#define KYEL  "\x1B[33m"
+
+sem_t mutex1, mutex2;
+sem_t empty, full;
 
 int queue[BUFFER_SIZE];
 int front = -1, rear =-1;
@@ -37,48 +48,102 @@ int isEmpty() {
     return 0;
 }
 
-void *thread_function(void *arg)
+void signalHandler(int sig_num)
 {
-    sem_t *mutex = (sem_t *)arg;
-    sem_wait(mutex);
+    //set color back to black
+    printf("%sExit\n",KNRM);
+    //destroy semaphores
+    sem_destroy(&mutex1);
+    sem_destroy(&mutex2);
+    sem_destroy(&empty);
+    sem_destroy(&full);
+    exit(0);
+}
+
+void *counter_function(void *arg)
+{
+    int thread_no = *(int *)arg;
+    printf("\n%sThread %d is trying to Enter critical section..\n",KYEL,thread_no); 
+    sem_wait(&mutex1);
+    //critical section
+    printf("\n%sThread %d Entered critical section..\n",KGRN,thread_no); 
     i++;
-    printf("Thread %ld\n", pthread_self());
-    sem_post(mutex);
-    pthread_exit(NULL);
+    sleep(1);
+    //signal and exit critical section
+    printf("\n%sThread %d Just Exiting critical section...\n",KRED,thread_no); 
+    sem_post(&mutex1);
+    //1---10
 }
 void *monitor_function(void *arg)
 {
-    sem_t *mutex = (sem_t *)arg;
-    sem_wait(mutex);
-    enqueque(i);
-    printf("Monitor %ld\n", pthread_self());
-    sem_post(mutex);
-    pthread_exit(NULL);
+    printf("\n%s mMonitor is trying to Enter critical section..\n",KYEL);
+    sem_wait(&mutex1);
+    //critical section
+    printf("\n%s mMonitor Entered critical section..\n",KGRN);
+    int number = i;
+    i = 0;
+    sleep(1);
+    //signal and exit critical section
+    printf("\n%s mMonitor Just Exiting critical section...\n",KRED);
+    sem_post(&mutex1);
+   
+    sem_wait(&empty);
+    printf("\n%s mMonitor is trying to Enter critical section..\n",KYEL);
+    sem_wait(&mutex2);
+    //critical section
+    printf("\n%s mMonitor Entered critical section..\n",KGRN);
+    enqueue(number);
+    sleep(1);
+    //signal and exit critical section
+    printf("\n%s mMonitor Just Exiting critical section...\n",KRED);
+    sem_post(&mutex2);
+    sem_post(&full);
+    //10---20
 }
 
 void *collector_function(void *arg)
 {
-    sem_t *mutex = (sem_t *)arg;
-    sem_wait(mutex);
-    dequque();
-    printf("Collector %ld\n", pthread_self());
-    sem_post(mutex);
-    pthread_exit(NULL);
+    sem_wait(&full);
+    printf("%s mCollector Trying to Enter critical section..\n",KGRN); 
+    sem_wait(&mutex2);
+    //critical section
+    printf("\n%s mCollector Entered critical section..\n",KGRN);
+    dequeue();
+    sleep(1);
+    //signal and exit critical section
+    printf("\n%s mCollector Just Exiting critical section...\n",KRED);
+    sem_post(&mutex2);
+    sem_post(&empty);
+    //20---30
 }
 
-void main()
+int main()
 {
     pthread_t mCounter[NUM_THREADS], mMonitor, mCollector;
-    sem_t mutex;
-    sem_init(&mutex, 0, 1);
-    for (i = 0; i < NUM_THREADS; i++)
-        pthread_create(&mCounter[i], NULL, thread_function, &mutex);
-    pthread_create(&mMonitor, NULL, monitor_function, &mutex);
-    pthread_create(&mCollector, NULL, collector_function, &mutex);
-    for (i = 0; i < NUM_THREADS; i++)
-        pthread_join(mCounter[i], NULL);
+    //handling signal
+    signal(SIGINT, signalHandler);
+
+    sem_init(&mutex1, 0, 1);
+    sem_init(&mutex2, 0, 1);
+
+    sem_init(&empty, 0, BUFFER_SIZE);
+    sem_init(&full, 0, 0);
+    
+    for (int j = 0; j < NUM_THREADS; j++)
+        pthread_create(&mCounter[j], NULL, counter_function,(void *) &j);    
+    pthread_create(&mMonitor, NULL, monitor_function, NULL);
+    pthread_create(&mCollector, NULL, collector_function, NULL);
+    
+    for (int j = 0; j < NUM_THREADS; j++)
+        pthread_join(mCounter[j], NULL);
     pthread_join(mMonitor, NULL);
     pthread_join(mCollector, NULL);
     
-    sem_destroy(&mutex);
+    sem_destroy(&mutex1);
+    sem_destroy(&mutex2);
+    sem_destroy(&empty);
+    sem_destroy(&full);
+
+    printf("%sExit\n", KNRM);
+    return 0;
 }
