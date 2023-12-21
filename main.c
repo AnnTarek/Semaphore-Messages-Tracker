@@ -6,7 +6,7 @@
 #include <unistd.h>
 
 #define NUM_THREADS 7
-#define BUFFER_SIZE 5
+#define BUFFER_SIZE 3
 #define KNRM  "\x1B[0m"
 #define KRED  "\x1B[31m"
 #define KGRN  "\x1B[32m"
@@ -52,67 +52,77 @@ void signalHandler(int sig_num)
 
 void *counter_function(void *arg)
 {
-    while(1){
     int thread_no = *(int *)arg;
-    printf("\n%sThread %d is trying to Enter critical section..\n",KGRN,thread_no); 
-    sem_wait(&mutex1);
-    //critical section
-    printf("\n%sThread %d Entered critical section..\n",KGRN,thread_no); 
-    i++;
-    sleep(1);
-    //signal and exit critical section
-    printf("\n%sThread %d Just Exiting critical section...\n",KGRN,thread_no); 
-    sem_post(&mutex1);
+    while(1){
     //sleep with random number between 1 and 10
     sleep(rand() % 10) + 1;
+    printf("\n%sCounter thread %d: received a message\n", KGRN, thread_no);
+
+    printf("\n%sCounter thread %d: waiting to write\n",KGRN, thread_no); 
+    sem_wait(&mutex1);
+    //critical section
+    i++;
+    printf("\n%sCounter thread %d: now adding to counter, counter value=%d\n",KGRN, thread_no, i); 
+    sleep(1);
+    //signal and exit critical section
+    sem_post(&mutex1);
+    
     }
 }
 void *monitor_function(void *arg)
 {
     while(1){
-    printf("\n%sMonitor is trying to Enter critical section..\n",KYEL);
+    //sleep with random number between 5 and 12
+    sleep(rand() % 11) + 2;
+    printf("\n%sMonitor thread: waiting to read counter\n",KYEL);
+
     sem_wait(&mutex1);
     //critical section
-    printf("\n%sMonitor Entered critical section..\n",KYEL);
     int number = i;
+    printf("\n%sMonitor thread: reading a count value of %d\n",KYEL,number);
     i = 0;
     sleep(1);
     //signal and exit critical section
-    printf("\n%sMonitor Just Exiting critical section...\n",KYEL);
     sem_post(&mutex1);
-   
+    
+    int y;
+    sem_getvalue(&empty, &y);
+    if(y == 0){
+        printf("\n%sMonitor thread: Buffer full!\n", KRED);
+    }
     sem_wait(&empty);
-    printf("\n%sMonitor is trying to Enter critical section..\n",KRED);
     sem_wait(&mutex2);
     //critical section
-    printf("\n%sMonitor Entered critical section..\n",KRED);
     enqueue(number);
+    printf("\n%sMonitor thread: writing to buffer at position %d\n",KRED, rear);
     sleep(1);
     //signal and exit critical section
-    printf("\n%sMonitor Just Exiting critical section...\n",KRED);
     sem_post(&mutex2);
     sem_post(&full);
-    //sleep with random number between 10 and 20
-    sleep(rand() % 11) + 10;
+    
     }
 }
 
 void *collector_function(void *arg)
 {
     while(1){
+    //sleep with random number between 25 and 35
+    sleep(rand() % 11) + 25;
+    
+    int x;
+    sem_getvalue(&full, &x);
+    if(x == 0){
+        printf("\n%sCollector thread: nothing is in the buffer!\n", KBLU);
+    }
     sem_wait(&full);
-    printf("%sCollector Trying to Enter critical section..\n",KBLU); 
     sem_wait(&mutex2);
     //critical section
-    printf("\n%sCollector Entered critical section..\n",KBLU);
     dequeue();
+    printf("\n%sCollector thread: reading from buffer at position %d\n",KBLU,front);
     sleep(1);
     //signal and exit critical section
-    printf("\n%sCollector Just Exiting critical section...\n",KBLU);
     sem_post(&mutex2);
     sem_post(&empty);
-    //sleep with random number between 20 and 30
-    sleep(rand() % 11) + 20;
     }
 
 }
@@ -149,6 +159,3 @@ int main()
     printf("%sExit\n", KNRM);
     return 0;
 }
-
-//check printings.
-//check thread garbage values.
