@@ -21,20 +21,14 @@ int front = -1, rear =-1;
 int i = 0;
 
 void enqueue(int value) {
-    if(front == -1) front = 0;
     rear = (rear + 1) % BUFFER_SIZE;
     queue[rear] = value;
 }
-int dequeue() {
-    int value;
+void dequeue() {
+        int value;
+        front = (front + 1) % BUFFER_SIZE;
         value = queue[front];
-        if(front == rear){
-            front = -1;
-            rear = -1;
-        }//reseting front and rear if queue is empty
-        else {
-            front = (front + 1) % BUFFER_SIZE;
-        }
+    
 }
 
 
@@ -72,8 +66,8 @@ void *counter_function(void *arg)
 void *monitor_function(void *arg)
 {
     while(1){
-    //sleep with random number between 5 and 12
-    sleep(rand() % 11) + 2;
+    //sleep with random number between 2 and 4
+    //sleep(rand() % 3) + 2;
     printf("\n%sMonitor thread: waiting to read counter\n",KYEL);
 
     sem_wait(&mutex1);
